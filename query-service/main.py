@@ -1,3 +1,4 @@
+import traceback
 import sys
 from pathlib import Path
 
@@ -7,8 +8,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from services import QueryService
 import uvicorn
 import os
+from shared.database import get_db
 
 app = FastAPI(
     title="Query Service",
@@ -26,7 +29,6 @@ app.add_middleware(
 
 class QueryRequest(BaseModel):
     question: str
-    top_k: int = 5
 
 @app.get("/")
 async def root():
@@ -36,18 +38,34 @@ async def root():
         "message": "Welcome to the Document Query API"
     }
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
 
 @app.post("/query")
 async def query_documents(request: QueryRequest):
-    # Placeholder for querying logic
-    return {
-        "question": request.question,
-        "results": [],
+    print(f"Received query: {request.question}")
+
+    if not request.question:
+        raise HTTPException(status_code=400, detail="Question is required")
+
+    
+    try:
+        print("[Step 1] Initializing QueryService...")
+        service = QueryService()
+        
+        print("[Step 2] Processing query...")
+        answer = await service.answer_question(request.question)
+        
+        print("[Step 3] Query processed successfully")
+        return {
+        "answer": answer,
         "message": "Query processing placeholder"
-    }
+        }
+
+    except Exception as e:
+        print("\n" + "!"*50)
+        print("!!! ERROR IN QUERY SERVICE !!!")
+        traceback.print_exc()
+        print("!"*50 + "\n")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8002))
